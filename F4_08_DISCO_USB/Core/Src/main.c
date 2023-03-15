@@ -46,6 +46,9 @@
 uint8_t DataToSend[40];			// Tablica zawierajaca dane do wyslania
 uint8_t MessageCounter = 0;
 uint8_t MessageLength = 0;
+
+uint8_t ReceivedData[40];		// Tablica przechowujaca odebrane dane
+uint8_t ReceivedDataFlag = 0;	// Flaga informujaca o odebraniu danych
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,6 +99,12 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if (1 == ReceivedDataFlag)
+	  {
+		  ReceivedDataFlag = 0;
+		  MessageLength = sprintf( (char *) DataToSend, "Odebrano : %s\n\r", ReceivedData);
+		  CDC_Transmit_FS(DataToSend, MessageLength);
+	  }
 	  if ( GPIO_PIN_SET == HAL_GPIO_ReadPin(Blue_button_GPIO_Port, Blue_button_Pin) )
 	  {
 		  HAL_Delay(100);
