@@ -28,6 +28,7 @@
 /* USER CODE BEGIN Includes */
 #include "SSD1331.h"
 #include <stdio.h>
+#include "stdbool.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -75,9 +76,10 @@ typedef enum {
 
 /* USER CODE BEGIN PV */
 uint8_t message[9];
-uint8_t time[3] = {10, 34, 21};		// 2 - hours, 1 - minutes, 0 - seconds
+uint8_t time[3] = {0, 0, 0};		// 2 - hours, 1 - minutes, 0 - seconds
 uint16_t Joystick[2];				// 0 - X, 1 - Y
 clock_state_e state = print_time;
+volatile bool j_gpio_pressed = false;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -143,6 +145,21 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if (j_gpio_pressed)
+	  {
+			if (set_time_h == state || set_time_m == state || set_time_s == state)
+			{
+				state = print_time;
+			}
+			else
+			{
+				state = set_time_s;
+			}
+			HAL_Delay(20);
+			__HAL_PWR_PVD_EXTI_ENABLE_IT();
+			j_gpio_pressed = false;
+	  }
+
 	  switch (state)
 	  {
 	  case print_time:
@@ -242,17 +259,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if (Joystick_button_Pin == GPIO_Pin || Button_Pin == GPIO_Pin)
+	if (Joystick_button_Pin == GPIO_Pin)
 	{
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-		if (set_time_h == state || set_time_m == state || set_time_s == state)
-		{
-			state = print_time;
-		}
-		else
-		{
-			state = set_time_s;
-		}
+		j_gpio_pressed = true;
+		__HAL_PWR_PVD_EXTI_DISABLE_IT();
 	}
 }
 
