@@ -29,6 +29,7 @@
 #include "SSD1331.h"
 #include <stdio.h>
 #include "stdbool.h"
+#include "LB_year.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,13 +48,15 @@ typedef enum {
 #define MINUTES 60
 #define HOURS 24
 
-#define CENTER_X 15
-#define CENTER_Y 25
+#define COLOR_TIME GREEN
+#define COLOR_DAY PURPLE
+#define CENTER_X 17
+#define CENTER_Y 35
 #define LINE_OFFSET_X 0
 #define LINE_OFFSET_Y 17
 #define LINE_PITCH_X 24
 #define LINE_LENGTH_X 15
-#define END_OF_THE_LINE ( (CENTER_X) + ( (LINE_PITCH_X) * 2 ) + LINE_LENGTH_X)
+#define END_OF_THE_LINE ( (CENTER_X) + ( (LINE_PITCH_X) * 2 ) + LINE_LENGTH_X )
 
 #define H_LINE_OFFSET_X (CENTER_X + LINE_OFFSET_X)
 #define H_LINE_OFFSET_Y (CENTER_Y + LINE_OFFSET_Y)
@@ -61,6 +64,9 @@ typedef enum {
 #define M_LINE_OFFSET_Y (CENTER_Y + LINE_OFFSET_Y)
 #define S_LINE_OFFSET_X (CENTER_X + LINE_OFFSET_X + (LINE_PITCH_X * 2))
 #define S_LINE_OFFSET_Y (CENTER_Y + LINE_OFFSET_Y)
+
+#define DAY_OFFSET_X (CENTER_X - 13)
+#define DAY_OFFSET_Y (CENTER_Y - 20)
 
 #define JOYSTICK_LOWER_LIMIT 1050
 #define JOYSTICK_UPPER_LIMIT 3050
@@ -75,11 +81,16 @@ typedef enum {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t message[9];
-uint8_t time[3] = {0, 0, 0};		// 2 - hours, 1 - minutes, 0 - seconds
-uint16_t Joystick[2];				// 0 - X, 1 - Y
+uint8_t message_day[12];
+uint8_t message_time[9];
+uint8_t time[3] = {55, 59, 23};		// 2 - hours, 1 - minutes, 0 - seconds
+day_t today = {27, 1, 2023};
 clock_state_e state = print_time;
+
+uint16_t Joystick[2];				// 0 - X, 1 - Y
+
 volatile bool j_gpio_pressed = false;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -139,6 +150,9 @@ int main(void)
   ssd1331_clear_screen(BLACK);
   HAL_Delay(1000);
   HAL_TIM_Base_Start_IT(&htim10);
+
+  sprintf((char *) message_day, "%02u %s %04u", today.day, whole_year[today.month_number].short_form, today.year);
+  ssd1331_display_string(DAY_OFFSET_X, DAY_OFFSET_Y, message_day, FONT_1608, COLOR_DAY);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -235,7 +249,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	if (TIM10 == htim->Instance && print_time == state)
 	{
 		ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, END_OF_THE_LINE, H_LINE_OFFSET_Y, BLACK);
-		ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, BLACK);
+		ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
 		++time[0];
 		if (SECONDS == time[0])
 		{
@@ -250,9 +264,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if (HOURS == time[2])
 		{
 			time[2] = 0;
+			ssd1331_display_string(DAY_OFFSET_X, DAY_OFFSET_Y, message_day, FONT_1608, BLACK);
+			LB_next_day(&today);
+			sprintf((char *) message_day, "%02u %s %04u", today.day, whole_year[today.month_number].short_form, today.year);
+			ssd1331_display_string(DAY_OFFSET_X, DAY_OFFSET_Y, message_day, FONT_1608, PURPLE);
+
 		}
-		sprintf((char *) message, "%02d:%02d:%02d", time[2], time[1], time[0]);
-		ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, GREEN);
+		sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 	}
 
 }
@@ -268,12 +287,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 void LB_PrintfTime(void)
 {
-	;
+	/* TODO: fill the function */
 }
 
 void LB_SetHours(void)
 {
-	  ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, H_LINE_OFFSET_X + LINE_LENGTH_X, H_LINE_OFFSET_Y, GREEN);
+	  ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, H_LINE_OFFSET_X + LINE_LENGTH_X, H_LINE_OFFSET_Y, COLOR_TIME);
 	  if (Joystick[0] < JOYSTICK_LOWER_LIMIT)
 	  {
 		  state = set_time_s;
@@ -288,32 +307,32 @@ void LB_SetHours(void)
 	  }
 	  if (Joystick[1] < JOYSTICK_LOWER_LIMIT)
 	  {
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, BLACK);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
 		  if (HOURS == ++time[2] )
 		  {
 			  time[2] = 0;
 		  }
-		  sprintf((char *) message, "%02d:%02d:%02d", time[2], time[1], time[0]);
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, GREEN);
+		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 	  else if (Joystick[1] > JOYSTICK_UPPER_LIMIT)
 	  {
 
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, BLACK);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
 		  if (0 == (time[2])--)
 		  {
 			  time[2] = HOURS - 1;
 		  }
-		  sprintf((char *) message, "%02d:%02d:%02d", time[2], time[1], time[0]);
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, GREEN);
+		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 }
 
 void LB_SetMinutes(void)
 {
-	  ssd1331_draw_line(M_LINE_OFFSET_X, M_LINE_OFFSET_Y, M_LINE_OFFSET_X + LINE_LENGTH_X, M_LINE_OFFSET_Y, GREEN);
+	  ssd1331_draw_line(M_LINE_OFFSET_X, M_LINE_OFFSET_Y, M_LINE_OFFSET_X + LINE_LENGTH_X, M_LINE_OFFSET_Y, COLOR_TIME);
 	  if (Joystick[0] < JOYSTICK_LOWER_LIMIT)
 	  {
 		  state = set_time_h;
@@ -328,30 +347,30 @@ void LB_SetMinutes(void)
 	  }
 	  if (Joystick[1] < JOYSTICK_LOWER_LIMIT)
 	  {
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, BLACK);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
 		  if (MINUTES == ++time[1] )
 		  {
 			  time[1] = 0;
 		  }
-		  sprintf((char *) message, "%02d:%02d:%02d", time[2], time[1], time[0]);
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, GREEN);
+		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 	  else if (Joystick[1] > JOYSTICK_UPPER_LIMIT)
 	  {
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, BLACK);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
 		  if (0 == (time[1])--)
 		  {
 			  time[1] = MINUTES - 1;
 		  }
-		  sprintf((char *) message, "%02d:%02d:%02d", time[2], time[1], time[0]);
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, GREEN);
+		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 }
 void LB_SetSeconds(void)
 {
-	  ssd1331_draw_line(S_LINE_OFFSET_X, S_LINE_OFFSET_Y, S_LINE_OFFSET_X + LINE_LENGTH_X, S_LINE_OFFSET_Y, GREEN);
+	  ssd1331_draw_line(S_LINE_OFFSET_X, S_LINE_OFFSET_Y, S_LINE_OFFSET_X + LINE_LENGTH_X, S_LINE_OFFSET_Y, COLOR_TIME);
 	  if (Joystick[0] < JOYSTICK_LOWER_LIMIT)
 	  {
 		  state = set_time_m;
@@ -366,24 +385,24 @@ void LB_SetSeconds(void)
 	  }
 	  if (Joystick[1] < JOYSTICK_LOWER_LIMIT)
 	  {
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, BLACK);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
 		  if (SECONDS == ++time[0] )
 		  {
 			  time[0] = 0;
 		  }
-		  sprintf((char *) message, "%02d:%02d:%02d", time[2], time[1], time[0]);
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, GREEN);
+		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 	  else if (Joystick[1] > JOYSTICK_UPPER_LIMIT)
 	  {
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, BLACK);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
 		  if (0 == (time[0])--)
 		  {
 			  time[0] = SECONDS - 1;
 		  }
-		  sprintf((char *) message, "%02d:%02d:%02d", time[2], time[1], time[0]);
-		  ssd1331_display_string(CENTER_X, CENTER_Y, message, FONT_1608, GREEN);
+		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 }
