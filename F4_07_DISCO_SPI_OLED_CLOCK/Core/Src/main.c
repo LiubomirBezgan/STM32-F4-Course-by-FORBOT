@@ -29,7 +29,7 @@
 #include "SSD1331.h"
 #include <stdio.h>
 #include "stdbool.h"
-#include "LB_year.h"
+#include <LB_date.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,7 +49,7 @@ typedef enum {
 #define HOURS 24
 
 #define COLOR_TIME GREEN
-#define COLOR_DAY PURPLE
+#define COLOR_DATE PURPLE
 #define CENTER_X 17
 #define CENTER_Y 35
 #define LINE_OFFSET_X 0
@@ -65,8 +65,8 @@ typedef enum {
 #define S_LINE_OFFSET_X (CENTER_X + LINE_OFFSET_X + (LINE_PITCH_X * 2))
 #define S_LINE_OFFSET_Y (CENTER_Y + LINE_OFFSET_Y)
 
-#define DAY_OFFSET_X (CENTER_X - 13)
-#define DAY_OFFSET_Y (CENTER_Y - 20)
+#define DATE_OFFSET_X (CENTER_X - 13)
+#define DATE_OFFSET_Y (CENTER_Y - 20)
 
 #define JOYSTICK_LOWER_LIMIT 1050
 #define JOYSTICK_UPPER_LIMIT 3050
@@ -81,10 +81,10 @@ typedef enum {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t message_day[12];
+uint8_t message_date[12];
 uint8_t message_time[9];
-uint8_t time[3] = {55, 59, 23};		// 2 - hours, 1 - minutes, 0 - seconds
-day_t today = {27, 1, 2023};
+uint8_t time[3] = {53, 59, 23};		// 2 - hours, 1 - minutes, 0 - seconds
+Date_t today = {1, 2, 2024};
 clock_state_e state = print_time;
 
 uint16_t Joystick[2];				// 0 - X, 1 - Y
@@ -144,15 +144,14 @@ int main(void)
   MX_TIM10_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
+  LB_Init_Date(&today);
   ssd1331_init();
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*) Joystick, 2);
   ssd1331_clear_screen(BLACK);
   HAL_Delay(1000);
   HAL_TIM_Base_Start_IT(&htim10);
-
-  sprintf((char *) message_day, "%02u %s %04u", today.day, whole_year[today.month_number].short_form, today.year);
-  ssd1331_display_string(DAY_OFFSET_X, DAY_OFFSET_Y, message_day, FONT_1608, COLOR_DAY);
+  LB_Date_to_Str(&today, (char *) message_date);
+  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -264,10 +263,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if (HOURS == time[2])
 		{
 			time[2] = 0;
-			ssd1331_display_string(DAY_OFFSET_X, DAY_OFFSET_Y, message_day, FONT_1608, BLACK);
-			LB_next_day(&today);
-			sprintf((char *) message_day, "%02u %s %04u", today.day, whole_year[today.month_number].short_form, today.year);
-			ssd1331_display_string(DAY_OFFSET_X, DAY_OFFSET_Y, message_day, FONT_1608, PURPLE);
+			ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, BLACK);
+			LB_Next_Day(&today);
+			LB_Date_to_Str(&today, (char *) message_date);
+			ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
 
 		}
 		sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
