@@ -1,6 +1,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include <LB_date.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 /* Local data type -----------------------------------------------------------*/
 typedef struct month {

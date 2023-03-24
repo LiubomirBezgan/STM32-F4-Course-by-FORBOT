@@ -6,14 +6,13 @@
 #define _LB_DATE_H_
 
 /* Includes ------------------------------------------------------------------*/
-#include <stdbool.h>
 #include <stdint.h>
 
 /* Program-specific declarations ---------------------------------------------*/
 #define MONTHS 12
 
 // set the current date
-#define CURRENT_DAY 21
+#define CURRENT_DAY 24
 #define CURRENT_MONTH 3
 #define CURRENT_YEAR 2023
 
@@ -77,10 +76,11 @@ void LB_Next_Year(Date_t * pdate);
 void LB_Prev_Year(Date_t * pdate);
 
 /**
-  * @brief  Checks whether the year of Date_t data type (date) is a leap year or not.
+  * @brief  sends formatted output to a string pointed to by the second argument
   * @param  pdate points to an initialized Date_t data type (date)
   * @param  message points to the target string
-  * @retval returns the total number of characters written excluding the null-character appended at the end of the string.
+  * @retval returns the total number of characters written excluding the null-character
+  * 		appended at the end of the string.
   */
 int LB_Date_to_Str(Date_t * pdate, char * message);
 

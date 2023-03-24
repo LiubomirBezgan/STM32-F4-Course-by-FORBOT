@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include "stdbool.h"
 #include <LB_date.h>
+#include <LB_time.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,16 +39,16 @@ typedef enum {
 	print_time,
 	set_time_h,
 	set_time_m,
-	set_time_s
+	set_time_s,
+	set_date_y,
+	set_date_m,
+	set_date_d
 } clock_state_e;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define SECONDS 60
-#define MINUTES 60
-#define HOURS 24
-
 #define COLOR_TIME GREEN
 #define COLOR_DATE PURPLE
 #define CENTER_X 17
@@ -56,7 +57,11 @@ typedef enum {
 #define LINE_OFFSET_Y 17
 #define LINE_PITCH_X 24
 #define LINE_LENGTH_X 15
-#define END_OF_THE_LINE ( (CENTER_X) + ( (LINE_PITCH_X) * 2 ) + LINE_LENGTH_X )
+#define LINE_LENGTH_DAY_X 15
+#define LINE_LENGTH_MONTH_X 24
+#define LINE_LENGTH_YEAR_X 31
+#define END_OF_THE_LINE_TIME ( (CENTER_X) + ( (LINE_PITCH_X) * 2 ) + LINE_LENGTH_X )
+#define END_OF_THE_LINE_DATE (DATE_OFFSET_X + LINE_OFFSET_X + YEAR_OFFSET + LINE_LENGTH_YEAR_X)
 
 #define H_LINE_OFFSET_X (CENTER_X + LINE_OFFSET_X)
 #define H_LINE_OFFSET_Y (CENTER_Y + LINE_OFFSET_Y)
@@ -65,12 +70,24 @@ typedef enum {
 #define S_LINE_OFFSET_X (CENTER_X + LINE_OFFSET_X + (LINE_PITCH_X * 2))
 #define S_LINE_OFFSET_Y (CENTER_Y + LINE_OFFSET_Y)
 
+#define D_LINE_OFFSET_X (DATE_OFFSET_X + LINE_OFFSET_X)
+#define D_LINE_OFFSET_Y (DATE_OFFSET_Y + LINE_OFFSET_Y)
+#define MONTH_LINE_OFFSET_X (DATE_OFFSET_X + LINE_OFFSET_X + LINE_PITCH_X)
+#define MONTH_LINE_OFFSET_Y (DATE_OFFSET_Y + LINE_OFFSET_Y)
+#define YEAR_OFFSET (LINE_LENGTH_DAY_X + LINE_LENGTH_MONTH_X + LINE_LENGTH_X + 2)
+#define Y_LINE_OFFSET_X (DATE_OFFSET_X + LINE_OFFSET_X + YEAR_OFFSET)
+#define Y_LINE_OFFSET_Y (DATE_OFFSET_Y + LINE_OFFSET_Y)
+
 #define DATE_OFFSET_X (CENTER_X - 13)
 #define DATE_OFFSET_Y (CENTER_Y - 20)
 
 #define JOYSTICK_LOWER_LIMIT 1050
 #define JOYSTICK_UPPER_LIMIT 3050
 #define JOYSTICK_DELAY 268
+#define JOYSTICK_LEFT (Joystick[0] < JOYSTICK_LOWER_LIMIT)
+#define JOYSTICK_RIGHT (Joystick[0] > JOYSTICK_UPPER_LIMIT)
+#define JOYSTICK_UP (Joystick[1] > JOYSTICK_UPPER_LIMIT)
+#define JOYSTICK_DOWN (Joystick[1] < JOYSTICK_LOWER_LIMIT)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -83,8 +100,8 @@ typedef enum {
 /* USER CODE BEGIN PV */
 uint8_t message_date[12];
 uint8_t message_time[9];
-uint8_t time[3] = {53, 59, 23};		// 2 - hours, 1 - minutes, 0 - seconds
-Date_t today = {1, 2, 2024};
+Time_t time;
+Date_t today;
 clock_state_e state = print_time;
 
 uint16_t Joystick[2];				// 0 - X, 1 - Y
@@ -100,10 +117,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 
-void LB_PrintfTime(void);
-void LB_SetHours(void);
-void LB_SetMinutes(void);
-void LB_SetSeconds(void);
+void LB_PrintfTime(Time_t * ptime);
+void LB_SetHours(Time_t * ptime);
+void LB_SetMinutes(Time_t * ptime);
+void LB_SetSeconds(Time_t * ptime);
+void LB_SetYear(Date_t * pdate);
+void LB_SetMonth(Date_t * pdate);
+void LB_SetDay(Date_t * pdate);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -145,6 +165,7 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   LB_Init_Date(&today);
+  LB_Init_Time(&time);
   ssd1331_init();
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*) Joystick, 2);
   ssd1331_clear_screen(BLACK);
@@ -162,13 +183,19 @@ int main(void)
 	  {
 			if (set_time_h == state || set_time_m == state || set_time_s == state)
 			{
+				state = set_date_d;
+				ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, END_OF_THE_LINE_TIME, H_LINE_OFFSET_Y, BLACK);
+			}
+			else if (set_date_y == state || set_date_m == state || set_date_d == state)
+			{
 				state = print_time;
+				ssd1331_draw_line(DATE_OFFSET_X, D_LINE_OFFSET_Y, END_OF_THE_LINE_DATE, D_LINE_OFFSET_Y, BLACK);
 			}
 			else
 			{
 				state = set_time_s;
 			}
-			HAL_Delay(20);
+			HAL_Delay(200);
 			__HAL_PWR_PVD_EXTI_ENABLE_IT();
 			j_gpio_pressed = false;
 	  }
@@ -176,18 +203,26 @@ int main(void)
 	  switch (state)
 	  {
 	  case print_time:
-		  LB_PrintfTime();
+		  LB_PrintfTime(&time);
 		  break;
 	  case set_time_h:
-		  LB_SetHours();
+		  LB_SetHours(&time);
 		  break;
 	  case set_time_m:
-		  LB_SetMinutes();
+		  LB_SetMinutes(&time);
 		  break;
 	  case set_time_s:
-		  LB_SetSeconds();
+		  LB_SetSeconds(&time);
 		  break;
-
+	  case set_date_y:
+		  LB_SetYear(&today);
+		  break;
+	  case set_date_m:
+		  LB_SetMonth(&today);
+		  break;
+	  case set_date_d:
+		  LB_SetDay(&today);
+		  break;
 	  }
     /* USER CODE END WHILE */
 
@@ -247,29 +282,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 	if (TIM10 == htim->Instance && print_time == state)
 	{
-		ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, END_OF_THE_LINE, H_LINE_OFFSET_Y, BLACK);
+		//ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, END_OF_THE_LINE_TIME, H_LINE_OFFSET_Y, BLACK);
+		//ssd1331_draw_line(DATE_OFFSET_X, D_LINE_OFFSET_Y, END_OF_THE_LINE_DATE, D_LINE_OFFSET_Y, BLACK);
 		ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
-		++time[0];
-		if (SECONDS == time[0])
+		if (NEW_DAY == LB_Times_Ticking(&time))
 		{
-			time[0] = 0;
-			++time[1];
-		}
-		if (MINUTES == time[1])
-		{
-			time[1] = 0;
-			++time[2];
-		}
-		if (HOURS == time[2])
-		{
-			time[2] = 0;
 			ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, BLACK);
 			LB_Next_Day(&today);
 			LB_Date_to_Str(&today, (char *) message_date);
 			ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
-
 		}
-		sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		LB_Time_to_Str(&time, (char *) message_time);
 		ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 	}
 
@@ -279,132 +302,215 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	if (Joystick_button_Pin == GPIO_Pin)
 	{
+
 		j_gpio_pressed = true;
 		__HAL_PWR_PVD_EXTI_DISABLE_IT();
 	}
 }
 
-void LB_PrintfTime(void)
+void LB_PrintfTime(Time_t * ptime)
 {
 	/* TODO: fill the function */
 }
 
-void LB_SetHours(void)
+void LB_SetHours(Time_t * ptime)
 {
 	  ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, H_LINE_OFFSET_X + LINE_LENGTH_X, H_LINE_OFFSET_Y, COLOR_TIME);
-	  if (Joystick[0] < JOYSTICK_LOWER_LIMIT)
+	  if (JOYSTICK_LEFT)
 	  {
 		  state = set_time_s;
 		  ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, H_LINE_OFFSET_X + LINE_LENGTH_X, H_LINE_OFFSET_Y, BLACK);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  else if (Joystick[0] > JOYSTICK_UPPER_LIMIT)
+	  else if (JOYSTICK_RIGHT)
 	  {
 		  state = set_time_m;
 		  ssd1331_draw_line(H_LINE_OFFSET_X, H_LINE_OFFSET_Y, H_LINE_OFFSET_X + LINE_LENGTH_X, H_LINE_OFFSET_Y, BLACK);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  if (Joystick[1] < JOYSTICK_LOWER_LIMIT)
+	  if (JOYSTICK_UP)
 	  {
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
-		  if (HOURS == ++time[2] )
-		  {
-			  time[2] = 0;
-		  }
-		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  LB_Set_Next_Hour(ptime);
+		  LB_Time_to_Str(ptime, (char *) message_time);
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  else if (Joystick[1] > JOYSTICK_UPPER_LIMIT)
+	  else if (JOYSTICK_DOWN)
 	  {
 
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
-		  if (0 == (time[2])--)
-		  {
-			  time[2] = HOURS - 1;
-		  }
-		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  LB_Set_Prev_Hour(ptime);
+		  LB_Time_to_Str(ptime, (char *) message_time);
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 }
 
-void LB_SetMinutes(void)
+void LB_SetMinutes(Time_t * ptime)
 {
 	  ssd1331_draw_line(M_LINE_OFFSET_X, M_LINE_OFFSET_Y, M_LINE_OFFSET_X + LINE_LENGTH_X, M_LINE_OFFSET_Y, COLOR_TIME);
-	  if (Joystick[0] < JOYSTICK_LOWER_LIMIT)
+	  if (JOYSTICK_LEFT)
 	  {
 		  state = set_time_h;
 		  ssd1331_draw_line(M_LINE_OFFSET_X, M_LINE_OFFSET_Y, M_LINE_OFFSET_X + LINE_LENGTH_X, M_LINE_OFFSET_Y, BLACK);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  else if (Joystick[0] > JOYSTICK_UPPER_LIMIT)
+	  else if (JOYSTICK_RIGHT)
 	  {
 		  state = set_time_s;
 		  ssd1331_draw_line(M_LINE_OFFSET_X, M_LINE_OFFSET_Y, M_LINE_OFFSET_X + LINE_LENGTH_X, M_LINE_OFFSET_Y, BLACK);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  if (Joystick[1] < JOYSTICK_LOWER_LIMIT)
+	  if (JOYSTICK_UP)
 	  {
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
-		  if (MINUTES == ++time[1] )
-		  {
-			  time[1] = 0;
-		  }
-		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  LB_Set_Next_Minute(ptime);
+		  LB_Time_to_Str(ptime, (char *) message_time);
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  else if (Joystick[1] > JOYSTICK_UPPER_LIMIT)
+	  else if (JOYSTICK_DOWN)
 	  {
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
-		  if (0 == (time[1])--)
-		  {
-			  time[1] = MINUTES - 1;
-		  }
-		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  LB_Set_Prev_Minute(ptime);
+		  LB_Time_to_Str(ptime, (char *) message_time);
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 }
-void LB_SetSeconds(void)
+void LB_SetSeconds(Time_t * ptime)
 {
 	  ssd1331_draw_line(S_LINE_OFFSET_X, S_LINE_OFFSET_Y, S_LINE_OFFSET_X + LINE_LENGTH_X, S_LINE_OFFSET_Y, COLOR_TIME);
-	  if (Joystick[0] < JOYSTICK_LOWER_LIMIT)
+	  if (JOYSTICK_LEFT)
 	  {
 		  state = set_time_m;
 		  ssd1331_draw_line(S_LINE_OFFSET_X, S_LINE_OFFSET_Y, S_LINE_OFFSET_X + LINE_LENGTH_X, S_LINE_OFFSET_Y, BLACK);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  else if (Joystick[0] > JOYSTICK_UPPER_LIMIT)
+	  else if (JOYSTICK_RIGHT)
 	  {
 		  state = set_time_h;
 		  ssd1331_draw_line(S_LINE_OFFSET_X, S_LINE_OFFSET_Y, S_LINE_OFFSET_X + LINE_LENGTH_X, S_LINE_OFFSET_Y, BLACK);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  if (Joystick[1] < JOYSTICK_LOWER_LIMIT)
+	  if (JOYSTICK_UP)
 	  {
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
-		  if (SECONDS == ++time[0] )
-		  {
-			  time[0] = 0;
-		  }
-		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  LB_Set_Next_Second(ptime);
+		  LB_Time_to_Str(ptime, (char *) message_time);
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
-	  else if (Joystick[1] > JOYSTICK_UPPER_LIMIT)
+	  else if (JOYSTICK_DOWN)
 	  {
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, BLACK);
-		  if (0 == (time[0])--)
-		  {
-			  time[0] = SECONDS - 1;
-		  }
-		  sprintf((char *) message_time, "%02d:%02d:%02d", time[2], time[1], time[0]);
+		  LB_Set_Prev_Second(ptime);
+		  LB_Time_to_Str(ptime, (char *) message_time);
 		  ssd1331_display_string(CENTER_X, CENTER_Y, message_time, FONT_1608, COLOR_TIME);
 		  HAL_Delay(JOYSTICK_DELAY);
 	  }
 }
+
+void LB_SetYear(Date_t * pdate)
+{
+	  ssd1331_draw_line(Y_LINE_OFFSET_X, Y_LINE_OFFSET_Y, Y_LINE_OFFSET_X + LINE_LENGTH_YEAR_X, Y_LINE_OFFSET_Y, COLOR_DATE);
+	  if (JOYSTICK_LEFT)
+	  {
+		  state = set_date_m;
+		  ssd1331_draw_line(Y_LINE_OFFSET_X, Y_LINE_OFFSET_Y, Y_LINE_OFFSET_X + LINE_LENGTH_YEAR_X, Y_LINE_OFFSET_Y, BLACK);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  else if (JOYSTICK_RIGHT)
+	  {
+		  state = set_date_d;
+		  ssd1331_draw_line(Y_LINE_OFFSET_X, Y_LINE_OFFSET_Y, Y_LINE_OFFSET_X + LINE_LENGTH_YEAR_X, Y_LINE_OFFSET_Y, BLACK);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  if (JOYSTICK_UP)
+	  {
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, BLACK);
+		  LB_Next_Year(pdate);
+		  LB_Date_to_Str(pdate, (char *) message_date);
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  else if (JOYSTICK_DOWN)
+	  {
+
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, BLACK);
+		  LB_Prev_Year(pdate);
+		  LB_Date_to_Str(pdate, (char *) message_date);
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+}
+
+void LB_SetMonth(Date_t * pdate)
+{
+	  ssd1331_draw_line(MONTH_LINE_OFFSET_X, MONTH_LINE_OFFSET_Y, MONTH_LINE_OFFSET_X + LINE_LENGTH_MONTH_X, MONTH_LINE_OFFSET_Y, COLOR_DATE);
+	  if (JOYSTICK_LEFT)
+	  {
+		  state = set_date_d;
+		  ssd1331_draw_line(MONTH_LINE_OFFSET_X, MONTH_LINE_OFFSET_Y, MONTH_LINE_OFFSET_X + LINE_LENGTH_MONTH_X, MONTH_LINE_OFFSET_Y, BLACK);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  else if (JOYSTICK_RIGHT)
+	  {
+		  state = set_date_y;
+		  ssd1331_draw_line(MONTH_LINE_OFFSET_X, MONTH_LINE_OFFSET_Y, MONTH_LINE_OFFSET_X + LINE_LENGTH_MONTH_X, MONTH_LINE_OFFSET_Y, BLACK);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  if (JOYSTICK_UP)
+	  {
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, BLACK);
+		  LB_Next_Month(pdate);
+		  LB_Date_to_Str(pdate, (char *) message_date);
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  else if (JOYSTICK_DOWN)
+	  {
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, BLACK);
+		  LB_Prev_Month(pdate);
+		  LB_Date_to_Str(pdate, (char *) message_date);
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+}
+void LB_SetDay(Date_t * pdate)
+{
+	  ssd1331_draw_line(D_LINE_OFFSET_X, D_LINE_OFFSET_Y, D_LINE_OFFSET_X + LINE_LENGTH_DAY_X, D_LINE_OFFSET_Y, COLOR_DATE);
+	  if (JOYSTICK_LEFT)
+	  {
+		  state = set_date_y;
+		  ssd1331_draw_line(D_LINE_OFFSET_X, D_LINE_OFFSET_Y, D_LINE_OFFSET_X + LINE_LENGTH_DAY_X, D_LINE_OFFSET_Y, BLACK);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  else if (JOYSTICK_RIGHT)
+	  {
+		  state = set_date_m;
+		  ssd1331_draw_line(D_LINE_OFFSET_X, D_LINE_OFFSET_Y, D_LINE_OFFSET_X + LINE_LENGTH_DAY_X, D_LINE_OFFSET_Y, BLACK);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  if (JOYSTICK_UP)
+	  {
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, BLACK);
+		  LB_Next_Day(pdate);
+		  LB_Date_to_Str(pdate, (char *) message_date);
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+	  else if (JOYSTICK_DOWN)
+	  {
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, BLACK);
+		  LB_Prev_Day(pdate);
+		  LB_Date_to_Str(pdate, (char *) message_date);
+		  ssd1331_display_string(DATE_OFFSET_X, DATE_OFFSET_Y, message_date, FONT_1608, COLOR_DATE);
+		  HAL_Delay(JOYSTICK_DELAY);
+	  }
+}
+
 /* USER CODE END 4 */
 
 /**
