@@ -87,7 +87,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM10_Init();
-  MX_USART2_UART_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim10);
   /* USER CODE END 2 */
@@ -158,7 +158,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 	cnt++;
 	size = (uint16_t) sprintf(data, "Liczba wysylanych wiadomosci: %d.\n\r", cnt);
-	HAL_UART_Transmit_IT(&huart2, (uint8_t *) data, size);
+	HAL_UART_Transmit_IT(&huart1, (uint8_t *) data, size);
 	HAL_GPIO_TogglePin(Blue_Led_GPIO_Port, Blue_Led_Pin);
 }
 /* USER CODE END 4 */
