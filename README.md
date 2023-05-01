@@ -2,3 +2,4 @@
 
 Here are some examples:
 ![F4_07_DISCO_SPI_OLED_CLOCK photo](https://github.com/LiubomirBezgan/STM32-F4-Course-by-FORBOT/blob/main/F4_07_DISCO_SPI_OLED_CLOCK_PIC.jpg)
+![F4_04_DISCO_UART_DMA_pic](https://github.com/LiubomirBezgan/STM32-F4-Course-by-FORBOT/blob/main/F4_04_DISCO_UART_DMA_pic.jpg)
